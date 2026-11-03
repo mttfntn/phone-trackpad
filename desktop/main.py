@@ -9,6 +9,7 @@ from discovery import Advertiser
 from focus import start_focus_watcher
 from pairing import Pairing
 from server import OS_NAME, PhonePadServer
+from volume import FakeVolume, create_volume
 
 
 class DryRunBackend:
@@ -46,21 +47,35 @@ async def amain(args):
     loop = asyncio.get_running_loop()
 
     if args.dry_run:
-        # With --simulate-focus every click toggles a fake text-field focus, to test the keyboard banner.
-        toggle = (lambda: server.set_focus(not server.editable)) if args.simulate_focus else None
-        backend = DryRunBackend(toggle)
+        # With --simulate-focus every click toggles a fake text-field focus, and the cursor
+        # "hovers" a text field whenever none is focused, to test the keyboard pop-up.
+        def toggle():
+            server.set_focus(not server.editable)
+            server.set_hover(not server.editable)
+
+        backend = DryRunBackend(toggle if args.simulate_focus else None)
+        volume = FakeVolume()
     else:
         from input_backend import InputBackend
         backend = InputBackend()
-    server = PhonePadServer(backend, pairing, name)
+        volume = create_volume()
+    server = PhonePadServer(backend, pairing, name, volume)
+    volume_task = asyncio.ensure_future(server.poll_volume())
+    if args.simulate_focus:
+        server.set_hover(True)
 
     if not args.no_focus and not args.simulate_focus:
-        def on_change(editable):
+        def on_focus(editable):
             if args.verbose:
                 print(f"focus editable={editable}")
             loop.call_soon_threadsafe(server.set_focus, editable)
 
-        if not start_focus_watcher(on_change):
+        def on_hover(editable):
+            if args.verbose:
+                print(f"hover editable={editable}")
+            loop.call_soon_threadsafe(server.set_hover, editable)
+
+        if not start_focus_watcher(on_focus, on_hover):
             print("Keyboard pop-up isn't supported on this OS.")
 
     advertiser = Advertiser(name, args.port, OS_NAME)
@@ -75,6 +90,7 @@ async def amain(args):
     try:
         await server.run(port=args.port)
     finally:
+        volume_task.cancel()
         await advertiser.stop()
 
 

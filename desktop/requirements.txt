@@ -2,6 +2,7 @@ pynput>=1.7
 websockets>=13
 zeroconf>=0.130
 qrcode>=7
+pycaw>=20240210; sys_platform == "win32"
 uiautomation>=2.0; sys_platform == "win32"
 pyobjc-framework-ApplicationServices>=10; sys_platform == "darwin"
 pyobjc-framework-Quartz>=10; sys_platform == "darwin"

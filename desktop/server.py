@@ -49,24 +49,64 @@ def serve_static(connection, request):
 
 
 class PhonePadServer:
-    def __init__(self, backend, pairing, name=None):
+    def __init__(self, backend, pairing, name=None, volume=None):
         self.backend = backend
         self.pairing = pairing
         self.name = name or socket.gethostname()
+        self.volume = volume
         self.clients = set()
         self.editable = False
+        self.hover_editable = False
+        self.volume_state = None  # (level, muted) last sent to phones
 
     async def run(self, host="0.0.0.0", port=8765):
         async with serve(self._handle, host, port, process_request=serve_static,
                          max_size=64 * 1024, ping_interval=20) as server:
             await server.serve_forever()
 
+    def _broadcast(self, msg):
+        msg = json.dumps(msg)
+        for ws in list(self.clients):
+            asyncio.ensure_future(self._safe_send(ws, msg))
+
     def set_focus(self, editable):
         """Called on the event loop whenever the focused element changes editability."""
         self.editable = editable
-        msg = json.dumps({"t": "focus", "editable": editable})
-        for ws in list(self.clients):
-            asyncio.ensure_future(self._safe_send(ws, msg))
+        self._broadcast({"t": "focus", "editable": editable})
+
+    def set_hover(self, editable):
+        """Called on the event loop whenever the element under the cursor changes editability."""
+        self.hover_editable = editable
+        self._broadcast({"t": "hover", "editable": editable})
+
+    def _volume_msg(self):
+        level, muted = self.volume_state
+        return {"t": "volume", "level": level, "muted": muted}
+
+    async def poll_volume(self, interval=1.0):
+        """Keeps phones in sync with volume changes made on the computer itself."""
+        while self.volume:
+            try:
+                state = await self.volume.get()
+            except Exception:  # e.g. no audio device right now
+                state = None
+            if state and state != self.volume_state:
+                self.volume_state = state
+                self._broadcast(self._volume_msg())
+            await asyncio.sleep(interval)
+
+    async def _set_volume(self, level=None, muted=None):
+        try:
+            if level is not None:
+                await self.volume.set_level(level)
+            if muted is not None:
+                await self.volume.set_muted(muted)
+        except Exception as e:
+            print(f"Volume change failed: {e}")
+            return
+        # Remember what was set so the poller doesn't echo it back mid-drag.
+        old_level, old_muted = self.volume_state or (0, False)
+        self.volume_state = (old_level if level is None else level, old_muted if muted is None else muted)
 
     @staticmethod
     async def _safe_send(ws, msg):
@@ -119,6 +159,9 @@ class PhonePadServer:
         self.clients.add(ws)
         await ws.send(json.dumps({"t": "paired", "token": token, "name": self.name, "os": OS_NAME}))
         await ws.send(json.dumps({"t": "focus", "editable": self.editable}))
+        await ws.send(json.dumps({"t": "hover", "editable": self.hover_editable}))
+        if self.volume_state:
+            await ws.send(json.dumps(self._volume_msg()))
 
     def _dispatch(self, t, msg):
         b = self.backend
@@ -137,5 +180,10 @@ class PhonePadServer:
                 b.type_text(str(msg.get("s", "")))
             elif t == "key":
                 b.key(msg.get("name", ""), msg.get("mods") or [])
+            elif t == "volume" and self.volume:
+                level = max(0, min(100, int(msg.get("level", 0))))
+                asyncio.ensure_future(self._set_volume(level=level))
+            elif t == "mute" and self.volume:
+                asyncio.ensure_future(self._set_volume(muted=bool(msg.get("on"))))
         except (ValueError, TypeError) as e:
             print(f"Ignored bad {t!r} message: {e}")

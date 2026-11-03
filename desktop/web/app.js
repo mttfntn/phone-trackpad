@@ -2,12 +2,14 @@
 // PhonePad phone client: turns touches on this page into mouse/keyboard messages for the desktop helper.
 
 const $ = (id) => document.getElementById(id);
-const pad = $("pad"), kbd = $("kbd"), kbBtn = $("kbBtn"), banner = $("banner"), keysBar = $("keys");
+const pad = $("pad"), kbd = $("kbd"), kbBtn = $("kbBtn"), keysBar = $("keys");
 
 const TAP_MS = 250;          // max press length for a tap
 const TAP_SLOP = 8;          // max finger travel (px) for a tap
 const DRAG_WINDOW_MS = 300;  // tap then touch again within this to start a drag
 const SCROLL_PX_PER_STEP = 40;
+const MAX_SPEED = 1.5;
+const AUTO_KEYBOARD_GRACE_MS = 900;  // close a predicted keyboard if no text field got focus by then
 
 // ---------- settings ----------
 function load(key, fallback) {
@@ -16,7 +18,8 @@ function load(key, fallback) {
 function save(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ }
 }
-const settings = { speed: load("speed", 1.4), natural: load("natural", true) };
+// Older versions allowed speeds up to 3; clamp so saved values respect the new range.
+const settings = { speed: Math.min(+load("speed", 0.9) || 0.9, MAX_SPEED), natural: load("natural", true) };
 
 // ---------- connection ----------
 let ws = null, authed = false, retryMs = 500, lastPong = 0, computerOS = null;
@@ -78,6 +81,12 @@ function connect() {
       case "focus":
         onRemoteFocus(msg.editable);
         break;
+      case "hover":
+        hoverEditable = msg.editable;
+        break;
+      case "volume":
+        onRemoteVolume(msg.level, msg.muted);
+        break;
       case "pong":
         lastPong = Date.now();
         break;
@@ -90,7 +99,8 @@ function connect() {
 
   ws.onclose = () => {
     authed = false;
-    setStatus(false, "Reconnecting…");
+    setStatus(false, "Reconnecting");
+    hoverEditable = false;
     onRemoteFocus(false);
     setTimeout(connect, retryMs);
     retryMs = Math.min(retryMs * 2, 5000);
@@ -232,18 +242,40 @@ function endPointer(e, cancelled) {
     sendNow({ t: "click", button: "left", count: 1 });
     haptic();
     lastTapEnd = e.timeStamp; lastTapX = e.clientX; lastTapY = e.clientY;
+    maybeOpenKeyboardOnTap();
   }
 }
 pad.addEventListener("pointerup", (e) => endPointer(e, false));
 pad.addEventListener("pointercancel", (e) => endPointer(e, true));
+
 // Stops iOS from treating touches on the pad as page gestures and from blurring the keyboard input.
-pad.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
+// iOS only opens the keyboard from touch handlers, so taps are also tracked here to focus the input.
+let touchTap = null;
+pad.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  touchTap = e.touches.length === 1 ? { t: e.timeStamp, x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+}, { passive: false });
+pad.addEventListener("touchend", (e) => {
+  const tap = touchTap;
+  touchTap = null;
+  if (!tap || e.touches.length) return;
+  const end = e.changedTouches[0];
+  if (e.timeStamp - tap.t < TAP_MS && Math.hypot(end.clientX - tap.x, end.clientY - tap.y) < TAP_SLOP) {
+    maybeOpenKeyboardOnTap();
+  }
+});
+pad.addEventListener("touchmove", (e) => {
+  if (touchTap && e.touches.length > 1) touchTap = null;
+});
 pad.addEventListener("contextmenu", (e) => e.preventDefault());
 
 // ---------- keyboard ----------
 // The hidden input always holds a sentinel character so backspace on "empty" is still noticed.
 const SENTINEL = "​";
 let lastValue = SENTINEL, composing = false, manualKeyboard = false;
+let hoverEditable = false;   // the computer says the cursor is over a text field
+let remoteEditable = false;  // the computer says a text field has focus
+let autoTimer = null;
 const mods = new Set();
 
 function resetField() {
@@ -254,6 +286,7 @@ function resetField() {
 resetField();
 
 function openKeyboard(manual) {
+  if (keyboardOpen()) { manualKeyboard = manualKeyboard || manual; return; }
   manualKeyboard = manual;
   resetField();
   kbd.focus();  // only opens the phone keyboard when called from a tap handler
@@ -261,30 +294,44 @@ function openKeyboard(manual) {
 
 function closeKeyboard() {
   manualKeyboard = false;
+  clearTimeout(autoTimer);
   kbd.blur();
 }
 
 function keyboardOpen() { return document.activeElement === kbd; }
 
+// Called from the tap that clicks on the computer. If that click lands in a text field
+// (predicted from hover, or a field already has focus), the keyboard opens on this same tap.
+function maybeOpenKeyboardOnTap() {
+  if (keyboardOpen() || !(hoverEditable || remoteEditable)) return;
+  openKeyboard(false);
+  clearTimeout(autoTimer);
+  // A wrong guess (the click didn't focus a text field) closes the keyboard again.
+  autoTimer = setTimeout(() => { if (!remoteEditable && !manualKeyboard) closeKeyboard(); }, AUTO_KEYBOARD_GRACE_MS);
+}
+
 function onRemoteFocus(editable) {
-  kbBtn.classList.toggle("glow", editable && !keyboardOpen());
-  banner.hidden = !editable || keyboardOpen();
+  remoteEditable = editable;
+  if (editable) clearTimeout(autoTimer);
+  // If the keyboard couldn't open by itself, the icon lights up and the next tap anywhere opens it.
+  kbBtn.classList.toggle("hint", editable && !keyboardOpen());
   if (!editable && keyboardOpen() && !manualKeyboard) closeKeyboard();
 }
 
 kbBtn.addEventListener("click", () => {
   if (keyboardOpen()) closeKeyboard(); else openKeyboard(true);
 });
-banner.addEventListener("click", () => openKeyboard(false));
 
 kbd.addEventListener("focus", () => {
   keysBar.hidden = false;
-  banner.hidden = true;
-  kbBtn.classList.remove("glow");
+  kbBtn.classList.remove("hint");
+  kbBtn.classList.add("active");
   positionKeysBar();
 });
 kbd.addEventListener("blur", () => {
   keysBar.hidden = true;
+  kbBtn.classList.remove("active");
+  kbBtn.classList.toggle("hint", remoteEditable);
   clearMods();
 });
 
@@ -356,6 +403,50 @@ if (window.visualViewport) {
   visualViewport.addEventListener("resize", positionKeysBar);
   visualViewport.addEventListener("scroll", positionKeysBar);
 }
+
+// ---------- volume ----------
+const volBtn = $("volBtn"), volRow = $("volRow"), volSlider = $("volSlider");
+let volMuted = false, volDragging = false, volLastSent = 0, volTimer = null;
+
+function showVolume(level, muted) {
+  volMuted = muted;
+  volSlider.value = level;
+  $("volVal").textContent = level;
+  $("spkOn").hidden = muted;
+  $("spkOff").hidden = !muted;
+}
+
+function onRemoteVolume(level, muted) {
+  volBtn.hidden = false;  // only shown once the computer reports it can control volume
+  if (!volDragging) showVolume(level, muted);
+}
+
+function sendVolume() {
+  clearTimeout(volTimer);
+  volLastSent = performance.now();
+  send({ t: "volume", level: +volSlider.value });
+}
+
+volBtn.addEventListener("click", () => {
+  volRow.hidden = !volRow.hidden;
+  volBtn.classList.toggle("active", !volRow.hidden);
+});
+$("muteBtn").addEventListener("click", () => {
+  showVolume(+volSlider.value, !volMuted);
+  send({ t: "mute", on: volMuted });
+});
+volSlider.addEventListener("pointerdown", () => { volDragging = true; });
+volSlider.addEventListener("input", () => {
+  volDragging = true;
+  $("volVal").textContent = volSlider.value;
+  // At most one message per 60 ms while dragging; a trailing send catches the last position.
+  const wait = 60 - (performance.now() - volLastSent);
+  clearTimeout(volTimer);
+  if (wait <= 0) sendVolume(); else volTimer = setTimeout(sendVolume, wait);
+});
+volSlider.addEventListener("change", () => { sendVolume(); volDragging = false; });
+volSlider.addEventListener("pointerup", () => { volDragging = false; });
+volSlider.addEventListener("pointercancel", () => { volDragging = false; });
 
 // ---------- settings dialog ----------
 $("speed").value = settings.speed;

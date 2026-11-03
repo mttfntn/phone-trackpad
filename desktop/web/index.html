@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="PhonePad">
-<meta name="theme-color" content="#121214">
+<meta name="theme-color" content="#0e0e10">
 <title>PhonePad</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -15,46 +15,54 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <main id="pad"></main>
+
   <header id="bar">
     <span id="status" class="dot" aria-label="Disconnected"></span>
-    <span id="name">Connecting…</span>
-    <button id="kbBtn" class="icon-btn" aria-label="Keyboard">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 10h1M10 10h1M14 10h1M18 10h0M7 14h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span id="name">Connecting</span>
+    <button id="volBtn" class="icon" aria-label="Volume" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
     </button>
-    <button id="setBtn" class="icon-btn" aria-label="Settings">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <button id="kbBtn" class="icon" aria-label="Keyboard">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10.5h.01M10.3 10.5h.01M13.7 10.5h.01M17 10.5h.01M8 14h8"/></svg>
+    </button>
+    <button id="setBtn" class="icon" aria-label="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h9M18 7h1M5 17h1M10 17h9"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
     </button>
   </header>
 
-  <main id="pad">
-    <p id="hint">Drag to move · Tap to click · Two fingers to scroll or right-click · Tap then drag to select</p>
-  </main>
-
-  <button id="banner" hidden>⌨️ Tap to type</button>
+  <div id="volRow" hidden>
+    <button id="muteBtn" class="icon" aria-label="Mute">
+      <svg id="spkOn" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/></svg>
+      <svg id="spkOff" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+    </button>
+    <input id="volSlider" type="range" min="0" max="100" step="1" value="50" aria-label="Volume level">
+    <span id="volVal">50</span>
+  </div>
 
   <div id="keys" hidden>
-    <button data-key="esc">Esc</button>
-    <button data-key="tab">Tab</button>
-    <button data-mod="ctrl">Ctrl</button>
-    <button data-mod="alt">Alt</button>
-    <button data-mod="shift">Shift</button>
-    <button data-mod="cmd" id="cmdKey">Cmd</button>
-    <button data-key="left" aria-label="Left">←</button>
-    <button data-key="up" aria-label="Up">↑</button>
-    <button data-key="down" aria-label="Down">↓</button>
-    <button data-key="right" aria-label="Right">→</button>
-    <button data-key="delete">Del</button>
-    <button data-action="close" aria-label="Hide keyboard">✕</button>
+    <button data-key="esc">esc</button>
+    <button data-key="tab">tab</button>
+    <button data-mod="ctrl">ctrl</button>
+    <button data-mod="alt">alt</button>
+    <button data-mod="shift">shift</button>
+    <button data-mod="cmd" id="cmdKey" hidden>cmd</button>
+    <button data-key="left" aria-label="Left"><svg viewBox="0 0 24 24"><path d="M14 7l-5 5 5 5"/></svg></button>
+    <button data-key="up" aria-label="Up"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></svg></button>
+    <button data-key="down" aria-label="Down"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
+    <button data-key="right" aria-label="Right"><svg viewBox="0 0 24 24"><path d="M10 7l5 5-5 5"/></svg></button>
+    <button data-key="delete">del</button>
+    <button data-action="close" aria-label="Hide keyboard"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
   </div>
 
   <input id="kbd" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="enter" aria-label="Type on computer">
 
   <dialog id="pairDlg">
     <form method="dialog" id="pairForm">
-      <h2>Pair with your computer</h2>
-      <p>Enter the 4-digit PIN shown in the PhonePad window on your computer.</p>
-      <input id="pinInput" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="PIN">
-      <p id="pairErr" class="err" hidden>Wrong PIN, try again.</p>
+      <h2>Pair</h2>
+      <p>Enter the PIN shown on your computer.</p>
+      <input id="pinInput" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="0000">
+      <p id="pairErr" class="err" hidden>Wrong PIN</p>
       <button type="submit" class="primary">Pair</button>
     </form>
   </dialog>
@@ -62,10 +70,10 @@
   <dialog id="setDlg">
     <form method="dialog">
       <h2>Settings</h2>
-      <label>Pointer speed <input id="speed" type="range" min="0.4" max="3" step="0.1"></label>
+      <label>Pointer speed <input id="speed" type="range" min="0.2" max="1.5" step="0.05"></label>
       <label class="row"><input id="natural" type="checkbox"> Natural scrolling</label>
       <div class="actions">
-        <button type="button" id="unpair" class="danger">Unpair</button>
+        <button type="button" id="unpair" class="quiet">Unpair</button>
         <button type="submit" class="primary">Done</button>
       </div>
     </form>
