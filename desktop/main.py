@@ -1,0 +1,99 @@
+"""PhonePad desktop helper: serves the PhonePad phone page and lets it control this computer."""
+import argparse
+import asyncio
+import io
+import socket
+import sys
+
+from discovery import Advertiser
+from focus import start_focus_watcher
+from pairing import Pairing
+from server import OS_NAME, PhonePadServer
+
+
+class DryRunBackend:
+    """Logs input actions instead of performing them, for testing the phone page safely."""
+
+    def __init__(self, on_click=None):
+        self.on_click = on_click
+
+    def __getattr__(self, name):
+        def log(*args):
+            print(f"[dry-run] {name}{args}")
+            if name == "click" and self.on_click:
+                self.on_click()
+        return log
+
+
+def print_qr(url):
+    try:
+        import qrcode
+    except ImportError:
+        return
+    qr = qrcode.QRCode(border=1)
+    qr.add_data(url)
+    buf = io.StringIO()
+    qr.print_ascii(out=buf, invert=True)
+    try:
+        sys.stdout.write(buf.getvalue())
+    except UnicodeEncodeError:
+        pass  # console can't show the block characters; the URL is printed anyway
+
+
+async def amain(args):
+    name = args.name or socket.gethostname().split(".")[0]
+    pairing = Pairing()
+    loop = asyncio.get_running_loop()
+
+    if args.dry_run:
+        # With --simulate-focus every click toggles a fake text-field focus, to test the keyboard banner.
+        toggle = (lambda: server.set_focus(not server.editable)) if args.simulate_focus else None
+        backend = DryRunBackend(toggle)
+    else:
+        from input_backend import InputBackend
+        backend = InputBackend()
+    server = PhonePadServer(backend, pairing, name)
+
+    if not args.no_focus and not args.simulate_focus:
+        def on_change(editable):
+            if args.verbose:
+                print(f"focus editable={editable}")
+            loop.call_soon_threadsafe(server.set_focus, editable)
+
+        if not start_focus_watcher(on_change):
+            print("Keyboard pop-up isn't supported on this OS.")
+
+    advertiser = Advertiser(name, args.port, OS_NAME)
+    await advertiser.start()
+
+    ip = advertiser.addresses[0] if advertiser.addresses else "127.0.0.1"
+    url = f"http://{ip}:{args.port}/#pin={pairing.pin}"
+    print(f"PhonePad running as {name!r} on port {args.port}")
+    print(f"On your phone (same Wi-Fi), scan the QR code or open:\n  {url}")
+    print_qr(url)
+    print(f"Pairing PIN: {pairing.pin}")
+    try:
+        await server.run(port=args.port)
+    finally:
+        await advertiser.stop()
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--name", help="name shown on the phone (default: hostname)")
+    p.add_argument("--no-focus", action="store_true", help="disable keyboard pop-up on text fields")
+    p.add_argument("--dry-run", action="store_true", help="log input instead of controlling the computer")
+    p.add_argument("--simulate-focus", action="store_true", help="with --dry-run: each click toggles text focus")
+    p.add_argument("-v", "--verbose", action="store_true", help="log focus changes")
+    args = p.parse_args()
+    if args.simulate_focus and not args.dry_run:
+        p.error("--simulate-focus needs --dry-run")
+    try:
+        asyncio.run(amain(args))
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()

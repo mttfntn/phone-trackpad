@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PhonePad">
+<meta name="theme-color" content="#121214">
+<title>PhonePad</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="bar">
+    <span id="status" class="dot" aria-label="Disconnected"></span>
+    <span id="name">Connecting…</span>
+    <button id="kbBtn" class="icon-btn" aria-label="Keyboard">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 10h1M10 10h1M14 10h1M18 10h0M7 14h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+    <button id="setBtn" class="icon-btn" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+  </header>
+
+  <main id="pad">
+    <p id="hint">Drag to move · Tap to click · Two fingers to scroll or right-click · Tap then drag to select</p>
+  </main>
+
+  <button id="banner" hidden>⌨️ Tap to type</button>
+
+  <div id="keys" hidden>
+    <button data-key="esc">Esc</button>
+    <button data-key="tab">Tab</button>
+    <button data-mod="ctrl">Ctrl</button>
+    <button data-mod="alt">Alt</button>
+    <button data-mod="shift">Shift</button>
+    <button data-mod="cmd" id="cmdKey">Cmd</button>
+    <button data-key="left" aria-label="Left">←</button>
+    <button data-key="up" aria-label="Up">↑</button>
+    <button data-key="down" aria-label="Down">↓</button>
+    <button data-key="right" aria-label="Right">→</button>
+    <button data-key="delete">Del</button>
+    <button data-action="close" aria-label="Hide keyboard">✕</button>
+  </div>
+
+  <input id="kbd" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="enter" aria-label="Type on computer">
+
+  <dialog id="pairDlg">
+    <form method="dialog" id="pairForm">
+      <h2>Pair with your computer</h2>
+      <p>Enter the 4-digit PIN shown in the PhonePad window on your computer.</p>
+      <input id="pinInput" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="PIN">
+      <p id="pairErr" class="err" hidden>Wrong PIN, try again.</p>
+      <button type="submit" class="primary">Pair</button>
+    </form>
+  </dialog>
+
+  <dialog id="setDlg">
+    <form method="dialog">
+      <h2>Settings</h2>
+      <label>Pointer speed <input id="speed" type="range" min="0.4" max="3" step="0.1"></label>
+      <label class="row"><input id="natural" type="checkbox"> Natural scrolling</label>
+      <div class="actions">
+        <button type="button" id="unpair" class="danger">Unpair</button>
+        <button type="submit" class="primary">Done</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

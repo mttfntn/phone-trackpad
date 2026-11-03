@@ -1,0 +1,372 @@
+"use strict";
+// PhonePad phone client: turns touches on this page into mouse/keyboard messages for the desktop helper.
+
+const $ = (id) => document.getElementById(id);
+const pad = $("pad"), kbd = $("kbd"), kbBtn = $("kbBtn"), banner = $("banner"), keysBar = $("keys");
+
+const TAP_MS = 250;          // max press length for a tap
+const TAP_SLOP = 8;          // max finger travel (px) for a tap
+const DRAG_WINDOW_MS = 300;  // tap then touch again within this to start a drag
+const SCROLL_PX_PER_STEP = 40;
+
+// ---------- settings ----------
+function load(key, fallback) {
+  try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; }
+}
+function save(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ }
+}
+const settings = { speed: load("speed", 1.4), natural: load("natural", true) };
+
+// ---------- connection ----------
+let ws = null, authed = false, retryMs = 500, lastPong = 0, computerOS = null;
+let pendingPin = null;
+
+const hashPin = new URLSearchParams(location.hash.slice(1)).get("pin");
+if (hashPin) {
+  pendingPin = hashPin;
+  history.replaceState(null, "", location.pathname);  // keep the PIN out of history and bookmarks
+}
+
+function deviceName() {
+  const ua = navigator.userAgent;
+  return /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android phone" : "Phone";
+}
+
+function send(msg) {
+  if (ws && ws.readyState === WebSocket.OPEN && authed) ws.send(JSON.stringify(msg));
+}
+
+function setStatus(online, text) {
+  $("status").classList.toggle("on", online);
+  $("status").setAttribute("aria-label", online ? "Connected" : "Disconnected");
+  $("name").textContent = text;
+}
+
+function connect() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  authed = false;
+
+  ws.onopen = () => {
+    retryMs = 500;
+    lastPong = Date.now();
+    const token = load("token", null);
+    if (pendingPin) {
+      ws.send(JSON.stringify({ t: "pair", pin: pendingPin, device: deviceName() }));
+      pendingPin = null;
+    } else if (token) {
+      ws.send(JSON.stringify({ t: "hello", token }));
+    } else {
+      showPairing(false);
+    }
+  };
+
+  ws.onmessage = (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+    switch (msg.t) {
+      case "paired":
+        authed = true;
+        save("token", msg.token);
+        computerOS = msg.os;
+        $("cmdKey").hidden = msg.os !== "mac";  // on Windows "cmd" would just be Ctrl again
+        if ($("pairDlg").open) $("pairDlg").close();
+        setStatus(true, msg.name);
+        break;
+      case "focus":
+        onRemoteFocus(msg.editable);
+        break;
+      case "pong":
+        lastPong = Date.now();
+        break;
+      case "error":
+        if (msg.msg === "bad_pin") showPairing(true);
+        if (msg.msg === "bad_token") { save("token", null); showPairing(false); }
+        break;
+    }
+  };
+
+  ws.onclose = () => {
+    authed = false;
+    setStatus(false, "Reconnecting…");
+    onRemoteFocus(false);
+    setTimeout(connect, retryMs);
+    retryMs = Math.min(retryMs * 2, 5000);
+  };
+}
+
+// Keep-alive; a phone that slept often leaves a dead socket that never reports closing.
+setInterval(() => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (Date.now() - lastPong > 12000) { ws.close(); return; }
+  ws.send('{"t":"ping"}');
+}, 5000);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") { retryMs = 500; connect(); }
+});
+
+function showPairing(wrong) {
+  setStatus(false, "Not paired");
+  $("pairErr").hidden = !wrong;
+  $("pinInput").value = "";
+  if (!$("pairDlg").open) $("pairDlg").showModal();
+}
+
+$("pairForm").addEventListener("submit", (e) => {
+  const pin = $("pinInput").value.trim();
+  if (!/^\d{4}$/.test(pin)) { e.preventDefault(); return; }  // keep the dialog open
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ t: "pair", pin, device: deviceName() }));
+  } else {
+    pendingPin = pin;
+    connect();
+  }
+});
+
+// ---------- trackpad ----------
+const pointers = new Map();  // pointerId -> {x, y}
+let gesture = null;          // current touch sequence, reset when all fingers lift
+let lastTapEnd = 0, lastTapX = 0, lastTapY = 0;
+let moveX = 0, moveY = 0, scrollX = 0, scrollY = 0, frameQueued = false;
+
+function haptic() { if (navigator.vibrate) navigator.vibrate(8); }
+
+function flushMotion() {
+  if (moveX || moveY) {
+    send({ t: "move", dx: +moveX.toFixed(2), dy: +moveY.toFixed(2) });
+    moveX = moveY = 0;
+  }
+  if (scrollX || scrollY) {
+    send({ t: "scroll", dx: +scrollX.toFixed(3), dy: +scrollY.toFixed(3) });
+    scrollX = scrollY = 0;
+  }
+}
+
+function queueFrame() {
+  if (frameQueued) return;
+  frameQueued = true;
+  requestAnimationFrame(() => { frameQueued = false; flushMotion(); });
+}
+
+// Clicks, presses and keys must land after any motion still waiting for the next frame.
+function sendNow(msg) {
+  flushMotion();
+  send(msg);
+}
+
+function accelerate(dx, dy, dtMs) {
+  // Faster finger movement moves the cursor proportionally further, like a laptop trackpad.
+  const speed = Math.hypot(dx, dy) / Math.max(dtMs, 1);  // px per ms
+  const gain = settings.speed * (0.9 + 1.6 * Math.min(speed, 2.5));
+  return [dx * gain, dy * gain];
+}
+
+pad.addEventListener("pointerdown", (e) => {
+  pad.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, t: e.timeStamp });
+  pad.classList.add("touching");
+
+  if (!gesture) {
+    const now = e.timeStamp;
+    gesture = {
+      start: now, fingers: 1, travel: 0, dragging: false,
+      // A touch shortly after a tap, near the same spot, becomes a drag once it moves.
+      dragArmed: now - lastTapEnd < DRAG_WINDOW_MS && Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 60,
+    };
+  } else {
+    gesture.fingers = Math.max(gesture.fingers, pointers.size);
+  }
+});
+
+pad.addEventListener("pointermove", (e) => {
+  const p = pointers.get(e.pointerId);
+  if (!p || !gesture) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y, dt = e.timeStamp - p.t;
+  p.x = e.clientX; p.y = e.clientY; p.t = e.timeStamp;
+
+  if (gesture.fingers >= 2) {
+    if (pointers.size < 2) return;  // one finger of a two-finger gesture lifted early: ignore the rest
+    gesture.travel += Math.hypot(dx, dy) / pointers.size;
+    // Each finger reports separately, so divide to average their movement.
+    const sx = dx / pointers.size / SCROLL_PX_PER_STEP, sy = dy / pointers.size / SCROLL_PX_PER_STEP;
+    // Wheel convention: dy > 0 scrolls up, dx > 0 scrolls right.
+    if (settings.natural) { scrollX -= sx; scrollY += sy; } else { scrollX += sx; scrollY -= sy; }
+    queueFrame();
+    return;
+  }
+
+  gesture.travel += Math.hypot(dx, dy);
+  const [ax, ay] = accelerate(dx, dy, dt);
+  if (gesture.dragArmed && !gesture.dragging) {
+    // Hold the first few pixels back so the button goes down where the tap was.
+    gesture.heldX = (gesture.heldX || 0) + ax;
+    gesture.heldY = (gesture.heldY || 0) + ay;
+    if (gesture.travel <= TAP_SLOP) return;
+    gesture.dragging = true;
+    sendNow({ t: "down", button: "left" });
+    haptic();
+    moveX += gesture.heldX; moveY += gesture.heldY;
+  } else {
+    moveX += ax; moveY += ay;
+  }
+  queueFrame();
+});
+
+function endPointer(e, cancelled) {
+  if (!pointers.delete(e.pointerId) || pointers.size > 0 || !gesture) return;
+  pad.classList.remove("touching");
+  const g = gesture;
+  gesture = null;
+  const quick = e.timeStamp - g.start < TAP_MS && g.travel < TAP_SLOP;
+
+  if (g.dragging) {
+    sendNow({ t: "up", button: "left" });
+  } else if (!cancelled && quick && g.fingers >= 2) {
+    sendNow({ t: "click", button: "right", count: 1 });
+    haptic();
+  } else if (!cancelled && quick) {
+    // Two taps in a row reach the computer as two clicks, which it treats as a double click.
+    sendNow({ t: "click", button: "left", count: 1 });
+    haptic();
+    lastTapEnd = e.timeStamp; lastTapX = e.clientX; lastTapY = e.clientY;
+  }
+}
+pad.addEventListener("pointerup", (e) => endPointer(e, false));
+pad.addEventListener("pointercancel", (e) => endPointer(e, true));
+// Stops iOS from treating touches on the pad as page gestures and from blurring the keyboard input.
+pad.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
+pad.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// ---------- keyboard ----------
+// The hidden input always holds a sentinel character so backspace on "empty" is still noticed.
+const SENTINEL = "​";
+let lastValue = SENTINEL, composing = false, manualKeyboard = false;
+const mods = new Set();
+
+function resetField() {
+  kbd.value = SENTINEL;
+  lastValue = SENTINEL;
+  try { kbd.setSelectionRange(1, 1); } catch { /* not focused */ }
+}
+resetField();
+
+function openKeyboard(manual) {
+  manualKeyboard = manual;
+  resetField();
+  kbd.focus();  // only opens the phone keyboard when called from a tap handler
+}
+
+function closeKeyboard() {
+  manualKeyboard = false;
+  kbd.blur();
+}
+
+function keyboardOpen() { return document.activeElement === kbd; }
+
+function onRemoteFocus(editable) {
+  kbBtn.classList.toggle("glow", editable && !keyboardOpen());
+  banner.hidden = !editable || keyboardOpen();
+  if (!editable && keyboardOpen() && !manualKeyboard) closeKeyboard();
+}
+
+kbBtn.addEventListener("click", () => {
+  if (keyboardOpen()) closeKeyboard(); else openKeyboard(true);
+});
+banner.addEventListener("click", () => openKeyboard(false));
+
+kbd.addEventListener("focus", () => {
+  keysBar.hidden = false;
+  banner.hidden = true;
+  kbBtn.classList.remove("glow");
+  positionKeysBar();
+});
+kbd.addEventListener("blur", () => {
+  keysBar.hidden = true;
+  clearMods();
+});
+
+kbd.addEventListener("compositionstart", () => { composing = true; });
+kbd.addEventListener("compositionend", () => { composing = false; onTyped(); });
+kbd.addEventListener("input", onTyped);
+
+// Diff the field against its previous value instead of trusting individual key events:
+// this also covers autocorrect replacements and Android keyboards that compose whole words.
+function onTyped() {
+  const v = kbd.value;
+  let p = 0;
+  while (p < lastValue.length && p < v.length && lastValue[p] === v[p]) p++;
+  const removed = lastValue.length - p;
+  const added = v.slice(p);
+  for (let i = 0; i < removed; i++) sendNow({ t: "key", name: "backspace", mods: [] });
+  if (added) {
+    if (mods.size && added.length === 1) {
+      sendNow({ t: "key", name: added.toLowerCase(), mods: [...mods] });
+      clearMods();
+    } else {
+      sendNow({ t: "text", s: added });
+    }
+  }
+  lastValue = v;
+  if (!composing && (!v.startsWith(SENTINEL) || v.length > 32)) resetField();
+}
+
+kbd.addEventListener("keydown", (e) => {
+  if (e.isComposing) return;
+  if (e.key === "Enter") {
+    e.preventDefault();
+    sendNow({ t: "key", name: "enter", mods: [...mods] });
+    clearMods();
+  }
+});
+
+function clearMods() {
+  mods.clear();
+  keysBar.querySelectorAll("[data-mod]").forEach((b) => b.classList.remove("on"));
+}
+
+// Special keys act on pointerup; preventing the default on press keeps the input (and keyboard) focused.
+keysBar.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) e.preventDefault(); });
+keysBar.addEventListener("mousedown", (e) => e.preventDefault());
+keysBar.addEventListener("pointerup", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.action === "close") { closeKeyboard(); return; }
+  if (b.dataset.mod) {
+    const m = b.dataset.mod;
+    if (mods.has(m)) mods.delete(m); else mods.add(m);
+    b.classList.toggle("on", mods.has(m));
+    return;
+  }
+  sendNow({ t: "key", name: b.dataset.key, mods: [...mods] });
+  clearMods();
+  haptic();
+});
+
+// Keep the special keys bar sitting just above the on-screen keyboard.
+function positionKeysBar() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const hiddenBelow = window.innerHeight - vv.height - vv.offsetTop;
+  keysBar.style.transform = `translateY(${-Math.max(0, hiddenBelow)}px)`;
+}
+if (window.visualViewport) {
+  visualViewport.addEventListener("resize", positionKeysBar);
+  visualViewport.addEventListener("scroll", positionKeysBar);
+}
+
+// ---------- settings dialog ----------
+$("speed").value = settings.speed;
+$("natural").checked = settings.natural;
+$("speed").addEventListener("input", (e) => { settings.speed = +e.target.value; save("speed", settings.speed); });
+$("natural").addEventListener("change", (e) => { settings.natural = e.target.checked; save("natural", settings.natural); });
+$("setBtn").addEventListener("click", () => $("setDlg").showModal());
+$("unpair").addEventListener("click", () => {
+  save("token", null);
+  $("setDlg").close();
+  if (ws) ws.close();
+});
+
+connect();
