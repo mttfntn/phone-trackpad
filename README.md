@@ -35,8 +35,10 @@ Test without a phone: open Notepad or TextEdit, then run `python test_client.py 
 |---|---|
 | One finger drag | Move cursor |
 | Tap / two quick taps | Left click / double click |
+| Press and hold (half a second) | Right click |
 | Two-finger tap | Right click |
 | Two-finger drag | Scroll (natural scrolling can be turned off in Settings) |
+| Pinch out / in | Zoom in / out (Ctrl+wheel on Windows, Cmd+= / Cmd+- on Mac) |
 | Tap, then touch again and drag | Drag / select |
 
 Pointer speed is in Settings (the sliders icon).
@@ -61,5 +63,5 @@ The speaker icon shows a slider with the computer's current volume, plus mute. C
 
 ## Protocol
 JSON text frames over WebSocket at `ws://<host>:8765/ws`, each with a `t` field:
-`pair`, `hello`, `move`, `click`, `down`, `up`, `scroll`, `text`, `key`, `volume`, `mute` and `ping` go from the phone to the computer; `paired`, `error`, `focus`, `hover`, `volume` and `pong` go back.
+`pair`, `hello`, `move`, `click`, `down`, `up`, `scroll`, `zoom`, `text`, `key`, `volume`, `mute` and `ping` go from the phone to the computer; `paired`, `error`, `focus`, `hover`, `volume` and `pong` go back.
 See `desktop/server.py` for the fields.

@@ -9,6 +9,9 @@ const TAP_SLOP = 8;          // max finger travel (px) for a tap
 const DRAG_WINDOW_MS = 300;  // tap then touch again within this to start a drag
 const SCROLL_PX_PER_STEP = 40;
 const MAX_SPEED = 1.5;
+const LONG_PRESS_MS = 500;      // hold this long without moving for a right click
+const GESTURE_DECIDE_PX = 10;   // two-finger movement before choosing scroll or pinch
+const ZOOM_STEPS_PER_E = 4.3;   // doubling the finger spread is about 3 zoom steps
 const AUTO_KEYBOARD_GRACE_MS = 900;  // close a predicted keyboard if no text field got focus by then
 
 // ---------- settings ----------
@@ -140,7 +143,7 @@ $("pairForm").addEventListener("submit", (e) => {
 const pointers = new Map();  // pointerId -> {x, y}
 let gesture = null;          // current touch sequence, reset when all fingers lift
 let lastTapEnd = 0, lastTapX = 0, lastTapY = 0;
-let moveX = 0, moveY = 0, scrollX = 0, scrollY = 0, frameQueued = false;
+let moveX = 0, moveY = 0, scrollX = 0, scrollY = 0, zoomSteps = 0, frameQueued = false;
 
 function haptic() { if (navigator.vibrate) navigator.vibrate(8); }
 
@@ -152,6 +155,10 @@ function flushMotion() {
   if (scrollX || scrollY) {
     send({ t: "scroll", dx: +scrollX.toFixed(3), dy: +scrollY.toFixed(3) });
     scrollX = scrollY = 0;
+  }
+  if (zoomSteps) {
+    send({ t: "zoom", steps: +zoomSteps.toFixed(3) });
+    zoomSteps = 0;
   }
 }
 
@@ -181,11 +188,22 @@ pad.addEventListener("pointerdown", (e) => {
 
   if (!gesture) {
     const now = e.timeStamp;
-    gesture = {
-      start: now, fingers: 1, travel: 0, dragging: false,
+    const g = gesture = {
+      start: now, fingers: 1, travel: 0, dragging: false, longPressed: false,
       // A touch shortly after a tap, near the same spot, becomes a drag once it moves.
       dragArmed: now - lastTapEnd < DRAG_WINDOW_MS && Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 60,
+      // Two-finger gestures decide once whether they are a scroll or a pinch.
+      mode: null, panX: 0, panY: 0, pinch: 0,
     };
+    // Press and hold one finger without moving: right click, like a trackpad's long press.
+    if (!g.dragArmed) {
+      g.pressTimer = setTimeout(() => {
+        if (gesture !== g || g.fingers > 1 || g.travel >= TAP_SLOP) return;
+        g.longPressed = true;
+        sendNow({ t: "click", button: "right", count: 1 });
+        haptic();
+      }, LONG_PRESS_MS);
+    }
   } else {
     gesture.fingers = Math.max(gesture.fingers, pointers.size);
   }
@@ -195,18 +213,15 @@ pad.addEventListener("pointermove", (e) => {
   const p = pointers.get(e.pointerId);
   if (!p || !gesture) return;
   const dx = e.clientX - p.x, dy = e.clientY - p.y, dt = e.timeStamp - p.t;
+  const oldX = p.x, oldY = p.y;
   p.x = e.clientX; p.y = e.clientY; p.t = e.timeStamp;
 
   if (gesture.fingers >= 2) {
     if (pointers.size < 2) return;  // one finger of a two-finger gesture lifted early: ignore the rest
-    gesture.travel += Math.hypot(dx, dy) / pointers.size;
-    // Each finger reports separately, so divide to average their movement.
-    const sx = dx / pointers.size / SCROLL_PX_PER_STEP, sy = dy / pointers.size / SCROLL_PX_PER_STEP;
-    // Wheel convention: dy > 0 scrolls up, dx > 0 scrolls right.
-    if (settings.natural) { scrollX -= sx; scrollY += sy; } else { scrollX += sx; scrollY -= sy; }
-    queueFrame();
+    twoFingerMove(e.pointerId, oldX, oldY, dx, dy);
     return;
   }
+  if (gesture.longPressed) return;  // the finger is just resting after a right click
 
   gesture.travel += Math.hypot(dx, dy);
   const [ax, ay] = accelerate(dx, dy, dt);
@@ -225,14 +240,44 @@ pad.addEventListener("pointermove", (e) => {
   queueFrame();
 });
 
+function twoFingerMove(id, oldX, oldY, dx, dy) {
+  const g = gesture;
+  let other = null;
+  for (const [pid, q] of pointers) if (pid !== id) { other = q; break; }
+  const before = Math.hypot(oldX - other.x, oldY - other.y);
+  const after = Math.hypot(oldX + dx - other.x, oldY + dy - other.y);
+  // Only this finger moved, so the midpoint between the two moved by half as much.
+  const cx = dx / 2, cy = dy / 2;
+  g.travel += Math.hypot(cx, cy);
+
+  if (!g.mode) {
+    g.panX += cx; g.panY += cy; g.pinch += after - before;
+    const pan = Math.hypot(g.panX, g.panY), pinch = Math.abs(g.pinch);
+    if (Math.max(pan, pinch) < GESTURE_DECIDE_PX) return;
+    g.mode = pinch > pan ? "zoom" : "scroll";
+  }
+
+  if (g.mode === "zoom") {
+    if (before > 0 && after > 0) zoomSteps += Math.log(after / before) * ZOOM_STEPS_PER_E;
+  } else {
+    const sx = cx / SCROLL_PX_PER_STEP, sy = cy / SCROLL_PX_PER_STEP;
+    // Wheel convention: dy > 0 scrolls up, dx > 0 scrolls right.
+    if (settings.natural) { scrollX -= sx; scrollY += sy; } else { scrollX += sx; scrollY -= sy; }
+  }
+  queueFrame();
+}
+
 function endPointer(e, cancelled) {
   if (!pointers.delete(e.pointerId) || pointers.size > 0 || !gesture) return;
   pad.classList.remove("touching");
   const g = gesture;
   gesture = null;
+  clearTimeout(g.pressTimer);
   const quick = e.timeStamp - g.start < TAP_MS && g.travel < TAP_SLOP;
 
-  if (g.dragging) {
+  if (g.longPressed) {
+    // Right click already sent while the finger was down.
+  } else if (g.dragging) {
     sendNow({ t: "up", button: "left" });
   } else if (!cancelled && quick && g.fingers >= 2) {
     sendNow({ t: "click", button: "right", count: 1 });

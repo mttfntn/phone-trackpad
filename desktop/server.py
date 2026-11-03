@@ -170,6 +170,8 @@ class PhonePadServer:
                 b.move(float(msg.get("dx", 0)), float(msg.get("dy", 0)))
             elif t == "click":
                 b.click(msg.get("button", "left"), msg.get("count", 1))
+            elif t == "zoom":
+                b.zoom(max(-20.0, min(20.0, float(msg.get("steps", 0)))))
             elif t == "down":
                 b.down(msg.get("button", "left"))
             elif t == "up":

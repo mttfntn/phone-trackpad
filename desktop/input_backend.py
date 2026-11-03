@@ -38,6 +38,7 @@ class InputBackend:
         self._scroll_rem_x = 0.0
         self._scroll_rem_y = 0.0
         self._last_click = None
+        self._zoom_rem = 0.0
 
     def move(self, dx, dy):
         self._rem_x += dx
@@ -102,6 +103,24 @@ class InputBackend:
         self._scroll_rem_y -= py
         event = Quartz.CGEventCreateScrollWheelEvent(None, Quartz.kCGScrollEventUnitPixel, 2, py, px)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+
+    def zoom(self, steps):
+        """Pinch zoom: positive zooms in. Sent as whole steps so apps zoom by their usual increments."""
+        self._zoom_rem += steps
+        n = int(self._zoom_rem)
+        if not n:
+            return
+        self._zoom_rem -= n
+        if IS_MAC:
+            # Cmd+= / Cmd+- is what browsers, Finder, Preview and most Mac apps use for zoom.
+            key = "=" if n > 0 else "-"
+            for _ in range(abs(n)):
+                self.key(key, ["cmd"])
+        else:
+            # Ctrl+mouse wheel zooms in browsers, Office, Explorer and most Windows apps.
+            with self.keyboard.pressed(Key.ctrl):
+                for _ in range(abs(n)):
+                    self.mouse.scroll(0, 1 if n > 0 else -1)
 
     def type_text(self, s):
         # Send newlines as real Enter presses; everything else goes through unicode typing.

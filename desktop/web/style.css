@@ -1,10 +1,10 @@
 :root {
   --bg: #0e0e10;
-  --pad-active: #131316;
+  --dot: #2a2a2f;
+  --dot-active: #47474e;
   --line: #232327;
   --text: #e6e6ea;
   --muted: #6e6e78;
-  --accent: #6f9bff;
   --ok: #49d17d;
   --bad: #6e6e78;
   color-scheme: dark;
@@ -20,9 +20,15 @@ html, body {
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; }
 svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
-/* The whole screen is the trackpad; everything else floats above it. */
-#pad { position: fixed; inset: 0; touch-action: none; transition: background .15s; }
-#pad.touching { background: var(--pad-active); }
+/* The whole screen is the trackpad, drawn as a grid of dots; everything else floats above it. */
+#pad {
+  position: fixed; inset: 0; touch-action: none; -webkit-touch-callout: none;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, var(--dot) 1.2px, transparent 1.7px);
+  background-size: 22px 22px;
+  background-position: center;
+}
+#pad.touching { --dot: var(--dot-active); }
 
 #bar {
   position: fixed; top: 0; left: 0; right: 0;
@@ -37,7 +43,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round
 .icon { display: grid; place-items: center; width: 44px; height: 44px; color: var(--muted); transition: color .15s; }
 .icon svg { width: 22px; height: 22px; }
 .icon.active { color: var(--text); }
-.icon.hint { color: var(--accent); }
+.icon.hint { color: var(--text); animation: breathe 1.6s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: .35; } }
 [hidden] { display: none !important; }
 
 #volRow {
@@ -70,7 +77,7 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border: 0; bord
   border-radius: 6px; color: var(--muted); font-size: 14px;
 }
 #keys button svg { width: 18px; height: 18px; }
-#keys button.on { color: var(--accent); }
+#keys button.on { color: var(--bg); background: var(--text); }
 
 /* Kept focusable but invisible; 16px avoids iOS zooming in on focus. */
 #kbd {
