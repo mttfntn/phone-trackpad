@@ -94,6 +94,15 @@ async def amain(args):
         await advertiser.stop()
 
 
+def port_free(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(("0.0.0.0", port))
+            return True
+        except OSError:
+            return False
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--port", type=int, default=8765)
@@ -105,6 +114,11 @@ def main():
     args = p.parse_args()
     if args.simulate_focus and not args.dry_run:
         p.error("--simulate-focus needs --dry-run")
+    # Checked up front so a second copy says so plainly instead of printing a QR code and a traceback.
+    if not port_free(args.port):
+        print(f"PhonePad is already running (port {args.port} is in use).\n"
+              "Close the other PhonePad window first, or start this one with --port 8766.")
+        sys.exit(1)
     try:
         asyncio.run(amain(args))
     except KeyboardInterrupt:
