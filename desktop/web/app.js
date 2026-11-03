@@ -8,7 +8,7 @@ const TAP_MS = 250;          // max press length for a tap
 const TAP_SLOP = 8;          // max finger travel (px) for a tap
 const DRAG_WINDOW_MS = 300;  // tap then touch again within this to start a drag
 const SCROLL_PX_PER_STEP = 40;
-const MAX_SPEED = 1.5;
+const MAX_SPEED = 3;
 const LONG_PRESS_MS = 500;      // hold this long without moving for a right click
 const GESTURE_DECIDE_PX = 10;   // two-finger movement before choosing scroll or pinch
 const ZOOM_STEPS_PER_E = 4.3;   // doubling the finger spread is about 3 zoom steps
@@ -21,7 +21,7 @@ function load(key, fallback) {
 function save(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ }
 }
-// Older versions allowed speeds up to 3; clamp so saved values respect the new range.
+// Clamp so saved values always fit the slider range.
 const settings = { speed: Math.min(+load("speed", 0.9) || 0.9, MAX_SPEED), natural: load("natural", true) };
 
 // ---------- connection ----------
