@@ -95,7 +95,10 @@ class VolumeTest(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "darwin", "needs macOS osascript")
     def test_mac_real_get(self):
         # Only reads the volume; never changes it.
-        level, muted = asyncio.run(self.vol.MacVolume().get())
+        try:
+            level, muted = asyncio.run(self.vol.MacVolume().get())
+        except ValueError:
+            self.skipTest("no audio output device (osascript returned 'missing value')")
         self.assertTrue(0 <= level <= 100)
         self.assertIsInstance(muted, bool)
 
