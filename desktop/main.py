@@ -7,11 +7,18 @@ import socket
 import sys
 import urllib.request
 
-from discovery import Advertiser
-from focus import start_focus_watcher
-from pairing import Pairing
-from server import OS_NAME, TrackpadServer
-from volume import FakeVolume, create_volume
+from version import MIN_PYTHON, VERSION
+
+# Checked before the other imports, which may use newer Python syntax or libraries.
+if sys.version_info < MIN_PYTHON:
+    sys.exit(f"Phone Trackpad needs Python {'.'.join(map(str, MIN_PYTHON))} or newer; "
+             f"this is Python {sys.version.split()[0]}. Get it from https://www.python.org/downloads/")
+
+from discovery import Advertiser  # noqa: E402
+from focus import start_focus_watcher  # noqa: E402
+from pairing import Pairing  # noqa: E402
+from server import OS_NAME, TrackpadServer  # noqa: E402
+from volume import FakeVolume, create_volume  # noqa: E402
 
 
 class DryRunBackend:
@@ -85,7 +92,7 @@ async def amain(args):
 
     ip = advertiser.addresses[0] if advertiser.addresses else "127.0.0.1"
     url = f"http://{ip}:{args.port}/#pin={pairing.pin}"
-    print(f"Phone Trackpad running as {name!r} on port {args.port}")
+    print(f"Phone Trackpad {VERSION} running as {name!r} on port {args.port}")
     print(f"On your phone (same Wi-Fi), scan the QR code or open:\n  {url}")
     print_qr(url)
     print(f"Pairing PIN: {pairing.pin}")
@@ -138,6 +145,9 @@ def main():
     args = p.parse_args()
     if args.simulate_focus and not args.dry_run:
         p.error("--simulate-focus needs --dry-run")
+    if sys.platform not in ("darwin", "win32") and not args.dry_run:
+        # --dry-run never touches this computer, so it still runs anywhere (handy for testing).
+        sys.exit("Phone Trackpad controls Windows and macOS only; this system isn't supported.")
     # Checked up front so a second copy says so plainly instead of printing a QR code and a traceback.
     if not port_free(args.port):
         if is_trackpad(args.port):

@@ -7,7 +7,7 @@ Use your phone (iPhone or Android) as a wireless trackpad and keyboard for a Win
 
 ## Start
 
-Double-click **`Phone Trackpad.bat`** on Windows or **`Phone Trackpad.command`** on a Mac. You need Python 3 installed ([python.org](https://www.python.org/downloads/)). The first run installs everything Phone Trackpad needs into `desktop/.venv`, which takes a minute; later runs start right away.
+Double-click **`Phone Trackpad.bat`** on Windows or **`Phone Trackpad.command`** on a Mac. You need Python 3.10 or newer ([python.org](https://www.python.org/downloads/)). The first run installs everything Phone Trackpad needs into `desktop/.venv`, which takes a minute; later runs start right away.
 
 On a Mac, the first time, right-click `Phone Trackpad.command` and choose **Open**, because macOS blocks scripts downloaded from the internet. If it says it isn't executable, run `chmod +x "Phone Trackpad.command"` once.
 
