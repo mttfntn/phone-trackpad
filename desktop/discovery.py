@@ -29,12 +29,18 @@ class Advertiser:
             server=f"{socket.gethostname().split('.')[0]}.local.",
         )
         self._zc = None
+        self._registered = False
 
     async def start(self):
         self._zc = AsyncZeroconf(ip_version=IPVersion.V4Only)
         await self._zc.async_register_service(self.info, allow_name_change=True)
+        self._registered = True
 
     async def stop(self):
-        if self._zc:
+        """Withdraws the announcement; safe if start() never finished or failed."""
+        if self._registered:
             await self._zc.async_unregister_service(self.info)
+            self._registered = False
+        if self._zc:
             await self._zc.async_close()
+            self._zc = None

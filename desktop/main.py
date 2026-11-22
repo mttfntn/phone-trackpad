@@ -88,7 +88,10 @@ async def amain(args):
             print("Keyboard pop-up isn't supported on this OS.")
 
     advertiser = Advertiser(name, args.port, OS_NAME)
-    await advertiser.start()
+    # Announcing on Bonjour takes about 1.2 s (mDNS probing); the link doesn't depend on it,
+    # so it runs alongside instead of delaying the link and the server.
+    advertising = asyncio.ensure_future(advertiser.start())
+    advertising.add_done_callback(_report_advertise_failure)
 
     ip = advertiser.addresses[0] if advertiser.addresses else "127.0.0.1"
     url = f"http://{ip}:{args.port}/#pin={pairing.pin}"
@@ -100,7 +103,14 @@ async def amain(args):
         await server.run(port=args.port)
     finally:
         volume_task.cancel()
+        advertising.cancel()
+        await asyncio.gather(advertising, return_exceptions=True)
         await advertiser.stop()
+
+
+def _report_advertise_failure(task):
+    if not task.cancelled() and task.exception():
+        print(f"Bonjour announcement failed ({task.exception()}); the link above still works.")
 
 
 def port_free(port):

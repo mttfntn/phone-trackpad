@@ -58,6 +58,7 @@ class TrackpadServer:
         self.editable = False
         self.hover_editable = False
         self.volume_state = None  # (level, muted) last sent to phones
+        self._volume_wake = asyncio.Event()  # set when a phone connects: read the volume now
 
     async def run(self, host="0.0.0.0", port=8765):
         async with serve(self._handle, host, port, process_request=serve_static,
@@ -84,7 +85,12 @@ class TrackpadServer:
         return {"t": "volume", "level": level, "muted": muted}
 
     async def poll_volume(self, interval=1.0):
-        """Keeps phones in sync with volume changes made on the computer itself."""
+        """Keeps phones in sync with volume changes made on the computer itself.
+
+        Reads the volume once at start, then every `interval` seconds while a phone is
+        connected. With no phone connected it waits until one connects: on macOS each reading
+        starts osascript (about 0.07 s of CPU), which once a second added up to ~7% of a core.
+        """
         while self.volume:
             try:
                 state = await self.volume.get()
@@ -93,7 +99,11 @@ class TrackpadServer:
             if state and state != self.volume_state:
                 self.volume_state = state
                 self._broadcast(self._volume_msg())
-            await asyncio.sleep(interval)
+            self._volume_wake.clear()
+            try:
+                await asyncio.wait_for(self._volume_wake.wait(), interval if self.clients else None)
+            except asyncio.TimeoutError:
+                pass
 
     async def _set_volume(self, level=None, muted=None):
         try:
@@ -164,6 +174,7 @@ class TrackpadServer:
         await ws.send(json.dumps({"t": "hover", "editable": self.hover_editable}))
         if self.volume_state:
             await ws.send(json.dumps(self._volume_msg()))
+        self._volume_wake.set()
 
     def _dispatch(self, t, msg):
         b = self.backend
