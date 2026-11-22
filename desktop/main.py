@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 import io
+import os
 import socket
 import sys
 import urllib.request
@@ -96,7 +97,13 @@ async def amain(args):
 
 
 def port_free(port):
+    """True if the server could listen on `port`."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if os.name != "nt":
+            # Same option the server's own socket uses (asyncio sets it outside Windows). Without
+            # it, connections from a phone that just disconnected (TIME_WAIT) made a restart look
+            # like the port was taken.
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind(("0.0.0.0", port))
             return True
