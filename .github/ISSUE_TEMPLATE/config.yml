@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: User guide
+    url: https://github.com/mttfntn/phone-trackpad#start
+    about: How to start Phone Trackpad, pair a phone, and the gestures.
+  - name: Report a security problem privately
+    url: https://github.com/mttfntn/phone-trackpad/security/advisories/new
+    about: Please do not open a public issue for security problems.
