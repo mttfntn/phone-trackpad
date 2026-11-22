@@ -2,4 +2,12 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+dist/
+*.zip
+node_modules/
 .DS_Store
+# local editor and assistant setup, not part of the project
+.vscode/
+.idea/
+.claude/
+.mcp.json
