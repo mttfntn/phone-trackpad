@@ -72,7 +72,7 @@ moves the REAL cursor and types: manual use only.
 
 ## Verification done for 1.0.0 (macOS, Python 3.13; Python suite also on 3.11)
 
-- Baseline (a7eb94b, before the cleanup): 142 checks of the first suite pass; the final suite
+- Baseline (fde5344, before the cleanup): 142 checks of the first suite pass; the final suite
   on it has 16 failures, all intended changes (pairing lock 5, non-ASCII PIN 3, restart port 1,
   link timing 1, volume polling 1, rename 2, device name 1, Python/system checks 2).
 - Behaviour probe old vs new: only index.html, manifest and app.js bytes differ (rename, locked
