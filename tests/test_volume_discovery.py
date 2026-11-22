@@ -71,19 +71,26 @@ class VolumeTest(unittest.TestCase):
             self.assertEqual(asyncio.run(v.get()), (37, True))
 
     def test_mac_set_level_coalesces_to_newest(self):
+        # The first osascript call is held open until every level has been sent, so the result
+        # doesn't depend on timer resolution (Windows timers tick about every 15 ms).
         scripts = []
+        release = None
 
         async def slow_osascript(script):
             scripts.append(script)
-            await asyncio.sleep(0.05)
+            if len(scripts) == 1:
+                await release.wait()
             return ""
 
         async def drag():
+            nonlocal release
+            release = asyncio.Event()
             v = self.vol.MacVolume()
             for level in (10, 20, 30, 40):
                 await v.set_level(level)
-                await asyncio.sleep(0.01)
-            await asyncio.sleep(0.2)
+                await asyncio.sleep(0)
+            release.set()
+            await v._worker
             await v.set_muted(True)
             await v.set_muted(False)
 
