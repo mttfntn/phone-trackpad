@@ -8,6 +8,7 @@ list is in README.md, under Protocol.
 """
 import asyncio
 import json
+import logging
 import socket
 import sys
 from http import HTTPStatus
@@ -15,10 +16,25 @@ from pathlib import Path
 
 from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
-from websockets.exceptions import ConnectionClosed
+from websockets.exceptions import ConnectionClosed, InvalidMessage
 from websockets.http11 import Response
 
 OS_NAME = "mac" if sys.platform == "darwin" else "windows"
+
+
+
+class _HideEmptyConnections(logging.Filter):
+    """Drops websockets' "opening handshake failed" traceback for connections that close
+    before sending anything, such as a browser's speculative pre-connection. websockets 16
+    (the newest for Python 3.10) logs a traceback for each; other errors still show."""
+
+    def filter(self, record):
+        exc = record.exc_info[1] if record.exc_info else None
+        empty = isinstance(exc, InvalidMessage) and isinstance(exc.__cause__, EOFError)
+        return not (empty and record.getMessage() == "opening handshake failed")
+
+
+logging.getLogger("websockets.server").addFilter(_HideEmptyConnections())
 
 WEB_DIR = Path(__file__).parent / "web"
 WS_PATH = "/ws"
