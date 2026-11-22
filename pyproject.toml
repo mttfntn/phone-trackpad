@@ -1,0 +1,26 @@
+# Project metadata only. Phone Trackpad isn't installed with pip: the launchers create
+# desktop/.venv and install desktop/requirements.txt. This file states the version and the
+# supported Python versions (the README badge reads requires-python from here); a test
+# checks that they match desktop/version.py, and the release workflow checks the tag.
+[project]
+name = "phone-trackpad"
+version = "1.0.0"
+description = "Use your phone as a wireless trackpad and keyboard for a Windows PC or a Mac."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Matteo Fontana" }]
+classifiers = [
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+
+[project.urls]
+Repository = "https://github.com/mttfntn/phone-trackpad"
+Issues = "https://github.com/mttfntn/phone-trackpad/issues"
