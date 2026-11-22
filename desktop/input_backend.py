@@ -1,4 +1,10 @@
-"""Injects mouse and keyboard input on the local machine using pynput."""
+"""Injects mouse and keyboard input on the local machine using pynput.
+
+Two things work differently on macOS: clicks set a click count (through pynput's private
+`_click` field), so that quick clicks become double clicks, and scrolling posts pixel-based
+Quartz scroll events directly, for smooth scrolling. On macOS all of this needs the
+Accessibility permission for the app that runs the helper (Terminal, for the launcher).
+"""
 import sys
 import time
 
@@ -29,6 +35,8 @@ MODIFIERS = {
 
 
 class InputBackend:
+    """The real input backend used by server.TrackpadServer (main.DryRunBackend is the fake)."""
+
     def __init__(self):
         self.mouse = mouse.Controller()
         self.keyboard = keyboard.Controller()
@@ -41,6 +49,7 @@ class InputBackend:
         self._zoom_rem = 0.0
 
     def move(self, dx, dy):
+        """Moves the cursor by (dx, dy) pixels, carrying fractions over to the next move."""
         self._rem_x += dx
         self._rem_y += dy
         ix, iy = int(self._rem_x), int(self._rem_y)
@@ -50,6 +59,7 @@ class InputBackend:
             self.mouse.move(ix, iy)
 
     def click(self, button="left", count=1):
+        """Clicks `button` ("left", "right" or "middle") 1 to 3 times."""
         btn = BUTTONS.get(button, mouse.Button.left)
         count = max(1, min(int(count), 3))
         if IS_MAC:
@@ -79,12 +89,15 @@ class InputBackend:
             self.mouse._click = None
 
     def down(self, button="left"):
+        """Presses a button and keeps it down (start of a drag)."""
         self.mouse.press(BUTTONS.get(button, mouse.Button.left))
 
     def up(self, button="left"):
+        """Releases a button (end of a drag)."""
         self.mouse.release(BUTTONS.get(button, mouse.Button.left))
 
     def scroll(self, dx, dy):
+        """Scrolls by wheel steps (fractions allowed); dy > 0 scrolls up, dx > 0 right."""
         if IS_MAC:
             self._scroll_mac(dx, dy)
         else:
@@ -123,6 +136,7 @@ class InputBackend:
                     self.mouse.scroll(0, 1 if n > 0 else -1)
 
     def type_text(self, s):
+        """Types `s` as text (any Unicode character)."""
         # Send newlines as real Enter presses; everything else goes through unicode typing.
         for i, line in enumerate(s.split("\n")):
             if i:
@@ -131,6 +145,10 @@ class InputBackend:
                 self.keyboard.type(line)
 
     def key(self, name, mods=()):
+        """Taps one key (a NAMED_KEYS name or one character) while holding `mods`.
+
+        Raises ValueError for an unknown key; unknown modifiers are ignored.
+        """
         name = str(name).lower()
         if name in NAMED_KEYS:
             target = NAMED_KEYS[name]

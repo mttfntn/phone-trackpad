@@ -17,6 +17,8 @@ def _is_editable(el):
 
 
 class FocusProbe:
+    """Readings for focus.start_focus_watcher; used as a context manager on the watcher thread."""
+
     def __enter__(self):
         # UI Automation needs COM initialised on the thread that uses it.
         self._init = auto.UIAutomationInitializerInThread(debug=False)

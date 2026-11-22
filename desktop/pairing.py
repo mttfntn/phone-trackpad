@@ -1,4 +1,8 @@
-"""PIN pairing and persisted device tokens."""
+"""PIN pairing and saved phone tokens.
+
+Each run makes a new 4-digit PIN (printed by main.py). A phone that sends the right PIN gets a
+random token, saved in ~/.phone-trackpad/config.json; later it connects with the token alone.
+"""
 import json
 import os
 import secrets
@@ -12,6 +16,8 @@ MAX_FAILURES = 10
 
 
 class Pairing:
+    """The current PIN, the wrong-guess counter and the saved tokens."""
+
     def __init__(self):
         self.pin = self._new_pin()
         self._failures = 0
@@ -66,7 +72,9 @@ class Pairing:
         return None
 
     def check(self, token):
+        """True if `token` belongs to a paired phone."""
         return isinstance(token, str) and token in self._config["tokens"]
 
     def device_name(self, token):
+        """The name the phone gave when it paired, for log messages."""
         return self._config["tokens"].get(token, "?")

@@ -28,6 +28,8 @@ def _is_editable(el):
 
 
 class FocusProbe:
+    """Readings for focus.start_focus_watcher; used as a context manager on the watcher thread."""
+
     def __enter__(self):
         if not AXIsProcessTrusted():
             print("Accessibility permission missing: keyboard pop-up and input injection won't work.\n"

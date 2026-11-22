@@ -1,4 +1,11 @@
-"""Serves the phone web page and a WebSocket that authenticates phones and turns their messages into input."""
+"""Serves the phone web page and a WebSocket that authenticates phones and turns their messages into input.
+
+One port does both: plain HTTP GETs get the files in web/ (see STATIC_FILES), and /ws upgrades
+to a WebSocket. On the WebSocket a phone first sends "pair" (PIN) or "hello" (saved token); only
+then are its input messages ("move", "click", "key", ...) passed to the input backend. The
+server also pushes "focus", "hover" and "volume" updates to every connected phone. The message
+list is in README.md, under Protocol.
+"""
 import asyncio
 import json
 import socket
@@ -49,6 +56,12 @@ def serve_static(connection, request):
 
 
 class TrackpadServer:
+    """The WebSocket side: authenticates phones, dispatches their messages, broadcasts state.
+
+    backend: an InputBackend (or main.DryRunBackend); pairing: a pairing.Pairing;
+    volume: a volume controller from volume.py, or None when volume control isn't available.
+    """
+
     def __init__(self, backend, pairing, name=None, volume=None):
         self.backend = backend
         self.pairing = pairing
@@ -61,11 +74,13 @@ class TrackpadServer:
         self._volume_wake = asyncio.Event()  # set when a phone connects: read the volume now
 
     async def run(self, host="0.0.0.0", port=8765):
+        """Serves the page and the WebSocket on all network interfaces until cancelled."""
         async with serve(self._handle, host, port, process_request=serve_static,
                          max_size=64 * 1024, ping_interval=20) as server:
             await server.serve_forever()
 
     def _broadcast(self, msg):
+        """Sends `msg` to every authenticated phone without waiting for slow ones."""
         msg = json.dumps(msg)
         for ws in list(self.clients):
             asyncio.ensure_future(self._safe_send(ws, msg))
@@ -106,6 +121,7 @@ class TrackpadServer:
                 pass
 
     async def _set_volume(self, level=None, muted=None):
+        """Applies a volume or mute change from a phone."""
         try:
             if level is not None:
                 await self.volume.set_level(level)
@@ -126,6 +142,7 @@ class TrackpadServer:
             pass
 
     async def _handle(self, ws):
+        """One phone connection: authentication first, then its messages, until it closes."""
         peer = ws.remote_address[0] if ws.remote_address else "?"
         authed = False
         try:
@@ -168,6 +185,7 @@ class TrackpadServer:
                 print(f"Device at {peer} disconnected")
 
     async def _on_auth(self, ws, token):
+        """Welcomes an authenticated phone with its token and the current state."""
         self.clients.add(ws)
         await ws.send(json.dumps({"t": "paired", "token": token, "name": self.name, "os": OS_NAME}))
         await ws.send(json.dumps({"t": "focus", "editable": self.editable}))
@@ -177,6 +195,7 @@ class TrackpadServer:
         self._volume_wake.set()
 
     def _dispatch(self, t, msg):
+        """Turns one input message into a backend call; bad values are logged and ignored."""
         b = self.backend
         try:
             if t == "move":

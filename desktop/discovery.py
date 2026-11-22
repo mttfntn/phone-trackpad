@@ -1,4 +1,8 @@
-"""Advertises the server on the local network via Bonjour/mDNS."""
+"""This computer's network addresses (for the link), and its Bonjour/mDNS announcement.
+
+The announcement (_phone-trackpad._tcp) lets Bonjour browsers find the helper; the phone page
+itself doesn't use it, since browsers can't browse Bonjour. The link uses the first address.
+"""
 import socket
 
 import ifaddr
@@ -9,6 +13,7 @@ SERVICE_TYPE = "_phone-trackpad._tcp.local."
 
 
 def local_ipv4_addresses():
+    """IPv4 addresses of this computer's network adapters, without loopback and link-local."""
     addrs = []
     for adapter in ifaddr.get_adapters():
         for ip in adapter.ips:
@@ -18,6 +23,8 @@ def local_ipv4_addresses():
 
 
 class Advertiser:
+    """Announces the helper as a Bonjour service while it runs."""
+
     def __init__(self, name, port, os_name):
         self.addresses = local_ipv4_addresses()
         self.info = ServiceInfo(

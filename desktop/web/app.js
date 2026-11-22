@@ -1,5 +1,11 @@
 "use strict";
 // Phone Trackpad phone client: turns touches on this page into mouse/keyboard messages for the desktop helper.
+//
+// Sections: settings (saved in localStorage), connection (WebSocket to /ws on the same host, pairing
+// with the PIN from the link or the dialog, reconnecting), trackpad (pointer events -> move, click,
+// drag, scroll, zoom; motion is batched once per animation frame), keyboard (a hidden input field
+// whose changes are diffed into text and key messages, plus the special keys bar), volume and the
+// settings dialog. The helper's replies "focus" and "hover" decide when the keyboard opens by itself.
 
 const $ = (id) => document.getElementById(id);
 const pad = $("pad"), kbd = $("kbd"), kbBtn = $("kbBtn"), keysBar = $("keys");
