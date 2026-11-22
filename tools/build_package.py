@@ -6,10 +6,11 @@ Usage (repo root, any supported Python):
 The zip holds one folder, "Phone Trackpad", with the two launchers, the desktop/ app (code,
 web page, requirements.txt), README.md and LICENSE. Tests, tools, docs for maintainers and any
 local .venv or caches are left out. Phone Trackpad.command keeps its executable bit, so it can
-be double-clicked after unzipping on a Mac. File times are fixed, so the same sources always
-give the same zip.
+be double-clicked after unzipping on a Mac. File times and line endings are fixed, so the same
+sources give the same zip on any system.
 """
 import argparse
+import hashlib
 import re
 import sys
 import zipfile
@@ -39,6 +40,13 @@ def app_files():
             yield rel
 
 
+def normalized(rel, data):
+    """Line endings fixed by the build, not by the checkout: CRLF for .bat (cmd needs it), LF
+    for every other file. So a checkout or copy that went through Windows gives the same zip."""
+    data = data.replace(b"\r\n", b"\n")
+    return data.replace(b"\n", b"\r\n") if rel.suffix == ".bat" else data
+
+
 def build(out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
     zip_path = out_dir / f"phone-trackpad-{version()}.zip"
@@ -49,7 +57,7 @@ def build(out_dir):
             info.compress_type = zipfile.ZIP_DEFLATED
             mode = 0o755 if rel.suffix == ".command" else 0o644
             info.external_attr = (0o100000 | mode) << 16  # regular file + permissions (Unix)
-            z.writestr(info, (ROOT / rel).read_bytes())
+            z.writestr(info, normalized(rel, (ROOT / rel).read_bytes()))
     return zip_path, entries
 
 
@@ -58,7 +66,8 @@ def main():
     ap.add_argument("--output-dir", default=str(ROOT / "dist"))
     args = ap.parse_args()
     zip_path, entries = build(Path(args.output_dir))
-    print(f"built {zip_path} ({zip_path.stat().st_size / 1024:.1f} KB, {len(entries)} files)")
+    digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+    print(f"built {zip_path} ({zip_path.stat().st_size / 1024:.1f} KB, {len(entries)} files, sha256 {digest})")
 
 
 if __name__ == "__main__":

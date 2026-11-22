@@ -13,7 +13,7 @@ python tests/run_tests.py --app-root OLD/desktop           # same suite on anoth
 python tests/probe_behaviour.py old.json --app-root OLD/desktop
 python tests/probe_behaviour.py new.json
 python tests/compare_probes.py old.json new.json           # "0 differences" unless behaviour changed on purpose
-python tools/build_package.py                              # -> dist/phone-trackpad-<ver>.zip (20 files, ~43 KB)
+python tools/build_package.py                              # -> dist/phone-trackpad-<ver>.zip (20 files, ~44 KB)
 python tests/check_package.py dist/phone-trackpad-*.zip    # unzip + real launcher + page; "PROBLEMS: none"
 python desktop/main.py --dry-run [--simulate-focus] [--no-focus] [--port N]   # safe manual run
 ```

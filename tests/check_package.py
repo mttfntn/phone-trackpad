@@ -135,6 +135,8 @@ def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     zip_path = Path(sys.argv[1]).resolve()
+    # The helper's output includes QR code block characters; a Windows console may lack them.
+    sys.stdout.reconfigure(errors="replace")
     problems = []
     version = check_contents(zip_path, problems)
     print(f"{zip_path.name}: version {version}, {zip_path.stat().st_size / 1024:.1f} KB")
