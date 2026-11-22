@@ -1,4 +1,4 @@
-# PhonePad
+# Phone Trackpad
 
 Use your phone (iPhone or Android) as a wireless trackpad and keyboard for a Windows PC or a Mac. Nothing needs to be installed on the phone: the helper running on the computer serves a web page that you open in Safari or Chrome.
 
@@ -7,9 +7,9 @@ Use your phone (iPhone or Android) as a wireless trackpad and keyboard for a Win
 
 ## Start
 
-Double-click **`PhonePad.bat`** on Windows or **`PhonePad.command`** on a Mac. You need Python 3 installed ([python.org](https://www.python.org/downloads/)). The first run installs everything PhonePad needs into `desktop/.venv`, which takes a minute; later runs start right away.
+Double-click **`Phone Trackpad.bat`** on Windows or **`Phone Trackpad.command`** on a Mac. You need Python 3 installed ([python.org](https://www.python.org/downloads/)). The first run installs everything Phone Trackpad needs into `desktop/.venv`, which takes a minute; later runs start right away.
 
-On a Mac, the first time, right-click `PhonePad.command` and choose **Open**, because macOS blocks scripts downloaded from the internet. If it says it isn't executable, run `chmod +x PhonePad.command` once.
+On a Mac, the first time, right-click `Phone Trackpad.command` and choose **Open**, because macOS blocks scripts downloaded from the internet. If it says it isn't executable, run `chmod +x "Phone Trackpad.command"` once.
 
 To start it by hand instead:
 
@@ -24,9 +24,9 @@ The helper prints a URL such as `http://192.168.1.21:8765/#pin=1234` and a QR co
 For a full-screen, app-like experience, add the page to your home screen: **Share → Add to Home Screen** on iPhone, or **⋮ → Add to Home screen** on Android. The home-screen copy pairs separately the first time.
 
 - The phone and the computer must be on the **same Wi-Fi network**.
-- Options: `--port 8765`, `--name "My PC"`, `--no-focus`, `-v` (log focus and hover changes). The launchers pass options through, for example `PhonePad.bat --name "My PC"`.
+- Options: `--port 8765`, `--name "My PC"`, `--no-focus`, `-v` (log focus and hover changes). The launchers pass options through, for example `"Phone Trackpad.bat" --name "My PC"`.
 - `--dry-run` logs actions instead of controlling the computer. Add `--simulate-focus` so that each click pretends a text field got focus.
-- Paired phones are stored in `~/.phonepad/config.json`. Delete that file to un-pair every phone, or use Settings → Unpair on the phone.
+- Paired phones are stored in `~/.phone-trackpad/config.json` (phones paired with an older version, when the app was called PhonePad, are carried over from `~/.phonepad`). Delete that file to un-pair every phone, or use Settings → Unpair on the phone.
 
 Test without a phone: open Notepad or TextEdit, then run `python test_client.py <PIN>`.
 

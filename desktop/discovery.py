@@ -5,7 +5,7 @@ import ifaddr
 from zeroconf import IPVersion, ServiceInfo
 from zeroconf.asyncio import AsyncZeroconf
 
-SERVICE_TYPE = "_phonepad._tcp.local."
+SERVICE_TYPE = "_phone-trackpad._tcp.local."
 
 
 def local_ipv4_addresses():

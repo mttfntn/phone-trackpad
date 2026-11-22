@@ -48,7 +48,7 @@ def serve_static(connection, request):
     return _http_response(HTTPStatus.OK, (WEB_DIR / filename).read_bytes(), content_type)
 
 
-class PhonePadServer:
+class TrackpadServer:
     def __init__(self, backend, pairing, name=None, volume=None):
         self.backend = backend
         self.pairing = pairing

@@ -38,7 +38,7 @@ async def run(args):
         await asyncio.sleep(0.5)
 
         print("Typing text")
-        await send(t="text", s="Hello from PhonePad! àèé ✓\nSecond line")
+        await send(t="text", s="Hello from Phone Trackpad! àèé ✓\nSecond line")
         await send(t="key", name="backspace", mods=[])
         await asyncio.sleep(0.5)
 

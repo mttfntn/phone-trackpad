@@ -1,7 +1,7 @@
 @echo off
-rem Double-click to start PhonePad. The first run sets up a private Python environment.
+rem Double-click to start Phone Trackpad. The first run sets up a private Python environment.
 setlocal
-title PhonePad
+title Phone Trackpad
 cd /d "%~dp0desktop"
 
 set "PY="
@@ -15,7 +15,7 @@ if not defined PY (
 )
 
 if not exist ".venv\Scripts\python.exe" (
-  echo Setting up PhonePad for the first time, this takes a minute...
+  echo Setting up Phone Trackpad for the first time, this takes a minute...
   %PY% -m venv .venv || goto fail
 )
 
@@ -34,6 +34,6 @@ exit /b 0
 
 :fail
 echo.
-echo PhonePad stopped with an error.
+echo Phone Trackpad stopped with an error.
 pause
 exit /b 1

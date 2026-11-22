@@ -1,6 +1,6 @@
 {
-  "name": "PhonePad",
-  "short_name": "PhonePad",
+  "name": "Phone Trackpad",
+  "short_name": "Trackpad",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",

@@ -1,10 +1,10 @@
 #!/bin/bash
-# Double-click to start PhonePad. The first run sets up a private Python environment.
+# Double-click to start Phone Trackpad. The first run sets up a private Python environment.
 cd "$(dirname "$0")/desktop" || exit 1
 
 fail() {
   echo
-  echo "PhonePad stopped with an error."
+  echo "Phone Trackpad stopped with an error."
   read -n 1 -s -r -p "Press any key to close."
   exit 1
 }
@@ -15,7 +15,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 if [ ! -x .venv/bin/python ]; then
-  echo "Setting up PhonePad for the first time, this takes a minute..."
+  echo "Setting up Phone Trackpad for the first time, this takes a minute..."
   python3 -m venv .venv || fail
 fi
 

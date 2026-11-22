@@ -4,8 +4,10 @@ import os
 import secrets
 from pathlib import Path
 
-CONFIG_DIR = Path.home() / ".phonepad"
+CONFIG_DIR = Path.home() / ".phone-trackpad"
 CONFIG_FILE = CONFIG_DIR / "config.json"
+# Where versions before the rename (when the app was called PhonePad) kept paired phones.
+OLD_CONFIG_FILE = Path.home() / ".phonepad" / "config.json"
 MAX_FAILURES = 10
 
 
@@ -20,10 +22,18 @@ class Pairing:
         return f"{secrets.randbelow(10000):04d}"
 
     def _load(self):
+        path = CONFIG_FILE
+        if not path.exists() and OLD_CONFIG_FILE.exists():
+            # Phones paired with PhonePad stay paired; the old file is copied, not moved.
+            path = OLD_CONFIG_FILE
         try:
-            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            config = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return {"tokens": {}}
+        if path is OLD_CONFIG_FILE:
+            self._config = config
+            self._save()
+        return config
 
     def _save(self):
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)

@@ -1,5 +1,5 @@
 "use strict";
-// PhonePad phone client: turns touches on this page into mouse/keyboard messages for the desktop helper.
+// Phone Trackpad phone client: turns touches on this page into mouse/keyboard messages for the desktop helper.
 
 const $ = (id) => document.getElementById(id);
 const pad = $("pad"), kbd = $("kbd"), kbBtn = $("kbBtn"), keysBar = $("keys");
