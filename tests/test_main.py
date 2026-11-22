@@ -201,6 +201,18 @@ class EndToEnd(unittest.TestCase):
             got, _ = again.wait_ready()
         self.assertEqual(got, port, "\n".join(again.lines[:3]))
 
+    def test_empty_connections_print_no_traceback(self):
+        # Browsers open connections and close them unused; websockets 16 (Python 3.10) logged each.
+        port = free_port()
+        with AppProcess("--dry-run", "--no-focus", "--port", str(port)) as app:
+            app.wait_ready()
+            for _ in range(10):
+                socket.create_connection(("127.0.0.1", port)).close()
+            self.assertEqual(http_get(port)[0], 200)
+            import time
+            time.sleep(1)
+        self.assertNotIn("Traceback", "\n".join(app.lines))
+
     def test_link_printed_before_bonjour_finishes(self):
         import time
         port = free_port()

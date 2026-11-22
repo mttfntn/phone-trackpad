@@ -99,7 +99,7 @@ From the repository root, with the Python that has the requirements installed (o
 setup, `desktop/.venv/bin/python`, or `desktop\.venv\Scripts\python` on Windows):
 
 ```
-python tests/run_tests.py                 # 165 checks (120 Python, 45 page), must end "0 failed"
+python tests/run_tests.py                 # 166 checks (121 Python, 45 page), must end "0 failed"
 python tests/run_tests.py --python-only   # without Node.js
 python tests/run_tests.py --app-root DIR  # the same tests on another copy of desktop/
 ```
@@ -165,6 +165,9 @@ start. `websockets` must stay at 13 or newer (`websockets.asyncio` API).
 - **Port check.** `port_free()` must bind the way asyncio does (`SO_REUSEADDR` outside Windows).
   Without it, a restart right after a phone disconnected looked like a busy port.
 - **PIN comparison** uses bytes: `secrets.compare_digest` raises on non-ASCII `str`.
+- **websockets versions.** Python 3.10 gets websockets 16.1.1 (17 needs 3.11). Version 16 logs a
+  traceback for every connection that closes without a request (browsers pre-connect);
+  `server._HideEmptyConnections` hides exactly that case. The CI matrix covers both versions.
 - **Startup order.** The Bonjour announcement takes about 1.2 s (mDNS probing), so it runs in
   the background. Nothing in the project uses it: browsers can't browse Bonjour.
 - **macOS volume** goes through `osascript`, about 0.07 s of CPU per reading; hence no polling

@@ -7,7 +7,7 @@ with pynput. Formerly "PhonePad". Humans: see HANDOVER.md.
 ## Commands (repo root; use the Python that has desktop/requirements.txt installed)
 
 ```
-desktop/.venv/bin/python tests/run_tests.py                # 165 checks (120 Python + 45 page), must end "0 failed"
+desktop/.venv/bin/python tests/run_tests.py                # 166 checks (121 Python + 45 page), must end "0 failed"
 python tests/run_tests.py --python-only                    # no Node.js
 python tests/run_tests.py --app-root OLD/desktop           # same suite on another copy
 python tests/probe_behaviour.py old.json --app-root OLD/desktop
@@ -56,6 +56,8 @@ moves the REAL cursor and types: manual use only.
   both launchers and the CI matrix (`tests/test_project.py` checks all of it). README must list
   every CLI option (also checked).
 - `secrets.compare_digest` on `str` raises for non-ASCII: compare bytes.
+- Python 3.10 gets websockets 16.1.1 (17 needs 3.11): behaviour can differ by version (16 logs a
+  traceback per empty connection; `server._HideEmptyConnections` filters it). CI tests both.
 - Don't await slow things before printing the link (Bonjour probing is ~1.2 s).
 - Don't read the volume when no phone is connected (osascript ≈ 0.07 s CPU each).
 - iOS opens the keyboard only inside a touch handler: keep `maybeOpenKeyboardOnTap()` in `touchend`.

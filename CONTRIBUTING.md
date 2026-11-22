@@ -29,7 +29,7 @@ Read it before a larger change.
    python tests/run_tests.py
    ```
 
-   Expected result: `165 checks (...), 0 failed` (or more checks).
+   Expected result: `166 checks (...), 0 failed` (or more checks).
 4. **If you fix a bug,** add a check that fails without your fix.
 5. **If you change behaviour on purpose,** compare with the previous version (HANDOVER.md, "How
    to run the tests") and explain every difference in the pull request.
