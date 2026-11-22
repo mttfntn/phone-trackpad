@@ -7,13 +7,16 @@ The zip holds one folder, "Phone Trackpad", with the two launchers, the desktop/
 web page, requirements.txt), README.md and LICENSE. Tests, tools, docs for maintainers and any
 local .venv or caches are left out. Phone Trackpad.command keeps its executable bit, so it can
 be double-clicked after unzipping on a Mac. File times and line endings are fixed, so the same
-sources give the same zip on any system.
+sources give the same contents on any system. The compressed bytes (and so the zip's sha256)
+can still differ with the zlib library of the Python that builds it; the printed "contents"
+digest covers names, permissions and uncompressed data, and is the one to compare.
 """
 import argparse
 import hashlib
 import re
 import sys
 import zipfile
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -61,13 +64,24 @@ def build(out_dir):
     return zip_path, entries
 
 
+def contents_digest(zip_path):
+    """sha256 over each entry's name, permissions and uncompressed data, in order."""
+    h = hashlib.sha256()
+    with zipfile.ZipFile(zip_path) as z:
+        for info in z.infolist():
+            h.update(f"{info.filename}\0{info.external_attr}\0".encode())
+            h.update(hashlib.sha256(z.read(info)).digest())
+    return h.hexdigest()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--output-dir", default=str(ROOT / "dist"))
     args = ap.parse_args()
     zip_path, entries = build(Path(args.output_dir))
-    digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
-    print(f"built {zip_path} ({zip_path.stat().st_size / 1024:.1f} KB, {len(entries)} files, sha256 {digest})")
+    print(f"built {zip_path} ({zip_path.stat().st_size / 1024:.1f} KB, {len(entries)} files)")
+    print(f"  contents {contents_digest(zip_path)}")
+    print(f"  zip sha256 {hashlib.sha256(zip_path.read_bytes()).hexdigest()} (zlib {zlib.ZLIB_RUNTIME_VERSION})")
 
 
 if __name__ == "__main__":
