@@ -28,7 +28,7 @@ For a full-screen, app-like experience, add the page to your home screen: **Shar
 - `--dry-run` logs actions instead of controlling the computer. Add `--simulate-focus` so that each click pretends a text field got focus.
 - Paired phones are stored in `~/.phone-trackpad/config.json` (phones paired with an older version, when the app was called PhonePad, are carried over from `~/.phonepad`). Delete that file to un-pair every phone, or use Settings → Unpair on the phone.
 
-Test without a phone: open Notepad or TextEdit, then run `python test_client.py <PIN>`.
+Test without a phone: open Notepad or TextEdit and put the mouse over it, then, from the repository folder, run `desktop/.venv/bin/python tools/test_client.py <PIN>` (on Windows `desktop\.venv\Scripts\python tools\test_client.py <PIN>`). It moves the real cursor, clicks and types.
 
 ## Gestures
 | Gesture | Action |

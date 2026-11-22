@@ -11,7 +11,7 @@ from websockets.asyncio.client import connect
 
 
 async def run(args):
-    async with connect(f"ws://{args.host}:{args.port}/") as ws:
+    async with connect(f"ws://{args.host}:{args.port}/ws") as ws:
         async def send(**msg):
             await ws.send(json.dumps(msg))
 
