@@ -4,6 +4,7 @@ import asyncio
 import io
 import socket
 import sys
+import urllib.request
 
 from discovery import Advertiser
 from focus import start_focus_watcher
@@ -103,6 +104,22 @@ def port_free(port):
             return False
 
 
+def is_phonepad(port):
+    """True if the program answering on this port is another copy of PhonePad."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2) as r:
+            return b"PhonePad" in r.read(4096)
+    except (OSError, ValueError):
+        return False
+
+
+def next_free_port(port, tries=20):
+    for candidate in range(port + 1, port + 1 + tries):
+        if port_free(candidate):
+            return candidate
+    return None
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--port", type=int, default=8765)
@@ -116,9 +133,18 @@ def main():
         p.error("--simulate-focus needs --dry-run")
     # Checked up front so a second copy says so plainly instead of printing a QR code and a traceback.
     if not port_free(args.port):
-        print(f"PhonePad is already running (port {args.port} is in use).\n"
-              "Close the other PhonePad window first, or start this one with --port 8766.")
-        sys.exit(1)
+        if is_phonepad(args.port):
+            print(f"PhonePad is already running (port {args.port} is in use).\n"
+                  f"Close the other PhonePad window first, or start this one with --port {args.port + 1}.")
+            sys.exit(1)
+        # Some other program holds the port: move to the next free one instead of stopping.
+        free = next_free_port(args.port)
+        if free is None:
+            print(f"Port {args.port} and the 20 after it are in use. Pick one with --port.")
+            sys.exit(1)
+        print(f"Port {args.port} is used by another program, so PhonePad is using port {free} instead.\n"
+              "The link below has the new port; links saved on the phone with the old port won't work.")
+        args.port = free
     try:
         asyncio.run(amain(args))
     except KeyboardInterrupt:
