@@ -94,7 +94,8 @@ function connect() {
         lastPong = Date.now();
         break;
       case "error":
-        if (msg.msg === "bad_pin") showPairing(true);
+        if (msg.msg === "bad_pin") showPairing("Wrong PIN");
+        if (msg.msg === "pairing_locked") showPairing("Too many wrong PINs. Restart Phone Trackpad on the computer, then use its new PIN.");
         if (msg.msg === "bad_token") { save("token", null); showPairing(false); }
         break;
     }
@@ -121,9 +122,11 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") { retryMs = 500; connect(); }
 });
 
-function showPairing(wrong) {
+// error: text shown under the PIN field (e.g. "Wrong PIN"), or false for none.
+function showPairing(error) {
   setStatus(false, "Not paired");
-  $("pairErr").hidden = !wrong;
+  $("pairErr").hidden = !error;
+  if (error) $("pairErr").textContent = error;
   $("pinInput").value = "";
   if (!$("pairDlg").open) $("pairDlg").showModal();
 }

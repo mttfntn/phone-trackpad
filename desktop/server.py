@@ -134,6 +134,8 @@ class TrackpadServer:
                         authed = True
                         print(f"Paired new device {msg.get('device', '?')!r} from {peer}")
                         await self._on_auth(ws, token)
+                    elif self.pairing.locked:
+                        await ws.send('{"t":"error","msg":"pairing_locked"}')
                     else:
                         await ws.send('{"t":"error","msg":"bad_pin"}')
                 elif t == "hello":

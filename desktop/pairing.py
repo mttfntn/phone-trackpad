@@ -15,6 +15,7 @@ class Pairing:
     def __init__(self):
         self.pin = self._new_pin()
         self._failures = 0
+        self.locked = False
         self._config = self._load()
 
     @staticmethod
@@ -44,19 +45,24 @@ class Pairing:
     def pair(self, pin, device):
         """Returns a new token if the PIN matches, else None.
 
-        Too many wrong guesses rotate the PIN so it can't be brute-forced.
+        After MAX_FAILURES wrong PINs, pairing stays locked until the helper restarts (which
+        also makes a new PIN), so a guesser on the network gets 10 tries in 10,000 per run.
+        Phones that are already paired keep working.
         """
-        if secrets.compare_digest(str(pin), self.pin):
+        if self.locked:
+            return None
+        # Compared as bytes: compare_digest refuses str with non-ASCII characters.
+        if secrets.compare_digest(str(pin).encode(), self.pin.encode()):
             token = secrets.token_urlsafe(24)
-            self._config["tokens"][token] = str(device)[:64] or "iPhone"
+            self._config["tokens"][token] = str(device)[:64] or "phone"
             self._save()
             self._failures = 0
             return token
         self._failures += 1
         if self._failures >= MAX_FAILURES:
-            self.pin = self._new_pin()
-            self._failures = 0
-            print(f"Too many wrong PINs. New pairing PIN: {self.pin}")
+            self.locked = True
+            print(f"{MAX_FAILURES} wrong PINs: pairing new phones is off until Phone Trackpad restarts.\n"
+                  "Phones that are already paired still work.")
         return None
 
     def check(self, token):
