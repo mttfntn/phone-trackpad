@@ -1,4 +1,18 @@
-"""Phone Trackpad desktop helper: serves the phone page and lets it control this computer."""
+"""Phone Trackpad desktop helper: serves the phone page and lets it control this computer.
+
+Start it with the launchers (Phone Trackpad.command / .bat) or `python main.py`. How the
+parts fit together:
+
+    main.py           options, port choice, startup banner; wires the parts below together
+    server.py         HTTP for the phone page, plus the WebSocket: pairing, then each phone
+                      message becomes a call on the input backend
+    input_backend.py  real mouse and keyboard through pynput (DryRunBackend below logs instead)
+    pairing.py        the PIN and the saved phone tokens (~/.phone-trackpad/config.json)
+    focus/            watches for text fields, so the phone keyboard can open by itself
+    volume.py         reads and sets the system volume
+    discovery.py      this computer's network addresses, and the Bonjour announcement
+    web/              the phone page; web/app.js turns touches into messages
+"""
 import argparse
 import asyncio
 import io
@@ -14,6 +28,7 @@ if sys.version_info < MIN_PYTHON:
     sys.exit(f"Phone Trackpad needs Python {'.'.join(map(str, MIN_PYTHON))} or newer; "
              f"this is Python {sys.version.split()[0]}. Get it from https://www.python.org/downloads/")
 
+import qrcode  # noqa: E402
 from discovery import Advertiser  # noqa: E402
 from focus import start_focus_watcher  # noqa: E402
 from pairing import Pairing  # noqa: E402
@@ -36,10 +51,7 @@ class DryRunBackend:
 
 
 def print_qr(url):
-    try:
-        import qrcode
-    except ImportError:
-        return
+    """Prints `url` as a QR code made of text blocks, for the phone camera to scan."""
     qr = qrcode.QRCode(border=1)
     qr.add_data(url)
     buf = io.StringIO()
@@ -51,6 +63,7 @@ def print_qr(url):
 
 
 async def amain(args):
+    """Builds the server and its helpers, prints the link, and serves until stopped."""
     name = args.name or socket.gethostname().split(".")[0]
     pairing = Pairing()
     loop = asyncio.get_running_loop()
@@ -109,6 +122,7 @@ async def amain(args):
 
 
 def _report_advertise_failure(task):
+    """Done-callback of the Bonjour task: a failed announcement is reported, not fatal."""
     if not task.cancelled() and task.exception():
         print(f"Bonjour announcement failed ({task.exception()}); the link above still works.")
 
@@ -138,6 +152,7 @@ def is_trackpad(port):
 
 
 def next_free_port(port, tries=20):
+    """The first free port after `port` (up to `tries` further on), or None."""
     for candidate in range(port + 1, port + 1 + tries):
         if port_free(candidate):
             return candidate
@@ -145,8 +160,11 @@ def next_free_port(port, tries=20):
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--port", type=int, default=8765)
+    """Command line entry point: checks the options and the port, then runs amain()."""
+    p = argparse.ArgumentParser(description="Phone Trackpad desktop helper: serves the phone page "
+                                            "and lets it control this computer.")
+    p.add_argument("--port", type=int, default=8765,
+                   help="port for the phone page (default 8765; if another program uses it, the next free one)")
     p.add_argument("--name", help="name shown on the phone (default: hostname)")
     p.add_argument("--no-focus", action="store_true", help="disable keyboard pop-up on text fields")
     p.add_argument("--dry-run", action="store_true", help="log input instead of controlling the computer")
